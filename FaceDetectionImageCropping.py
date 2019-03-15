@@ -28,14 +28,12 @@ def crop(path="./Parsed3_15/", dest="./Cropped128/", pixel=128):
         # Make a new folder if it doesn't exist
         if os.path.isdir(crp_dir) == False:
             os.mkdir(crp_dir)
-            if os.path.isdir(err_dir) == False:
-                os.mkdir(err_dir)
 
         # Crop all the images in the folder and store them in "crop"
         ac.main(
             input_d=in_dir,
             output_d=crp_dir,
-            reject_d=err_dir,
+            reject_d=reject_dir,
             fheight=pixel,
             fwidth=pixel,
             facePercent=90)
@@ -58,11 +56,15 @@ def organize(path="./Cropped128/", dest="./OrganizedImages/"):
             # Make an emotion folder if it doesn't exist
             if os.path.isdir(new_dir) == False:
                 os.mkdir(new_dir)
-            # Copy the image to the new destination
+
+            # Rename img
             img_path = in_dir + "\\" + img
-            copy(img_path, new_dir)
+            new_path = in_dir + "\\" + img.split(".")[0] + "_" + p_id + ".png"
+            os.rename(img_path, new_path)
+            # Copy the image to the new destination
+            copy(new_path, new_dir + "\\")
 
 
 if __name__ == "__main__":
-    crop()
-    # organize()
+    # crop()
+    organize()
