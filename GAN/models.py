@@ -16,28 +16,37 @@ class Generator(nn.Module):
         
         self.encoder = nn.Sequential( 
             nn.Conv2d(in_channels=10, out_channels=32, kernel_size=7,stride=1,padding=3), #in channels is temporary
-            nn.BatchNorm2d(32,momentum=0.9),
+            nn.BatchNorm2d(32,momentum=0.1),
             nn.ReLU(),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3,stride=1,padding=1),
-            nn.BatchNorm2d(64,momentum=0.9),
+            nn.BatchNorm2d(64,momentum=0.1),
             nn.ReLU(),            
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3,stride=1,padding=1),
-            nn.BatchNorm2d(128,momentum=0.9),
+            nn.BatchNorm2d(128,momentum=0.1),
             nn.ReLU()
             )
         self.decoder = nn.Sequential(
-
             nn.ConvTranspose2d(in_channels = 128, out_channels = 64, kernel_size=3,padding=1, stride=1),
-            nn.BatchNorm2d(64, momentum=0.9),
+            nn.BatchNorm2d(64, momentum=0.1),
             nn.ReLU(),       
             nn.ConvTranspose2d(in_channels = 64, out_channels = 32, kernel_size=3,padding=1, stride=1),
-            nn.BatchNorm2d(32, momentum=0.9),
+            nn.BatchNorm2d(32, momentum=0.1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=3, kernel_size=7,stride=1,padding=3),
+            nn.Conv2d(in_channels=32, out_channels=1, kernel_size=7,stride=1,padding=3), #switch to 1 channel for black and white
             nn.Tanh()
         )
+        
+        self.residual = nn.Sequential(
+            nn.ConvTranspose2d(in_channels = 128, out_channels = 128, kernel_size=3,padding=1, stride=1),
+            nn.BatchNorm2d(128, momentum=0.1),
+            nn.ReLU(),       
+            
+            nn.ConvTranspose2d(in_channels = 128, out_channels = 128, kernel_size=3,padding=1, stride=1),
+            nn.BatchNorm2d(128, momentum=0.1)           
+            )
+
     
-    def forward(self,x, target_emotions):
+    def forward(self,x, target_emotions, residual_blocks=6):
         #torch.eye(7)[target_emotions]
         
         #inject one hot encoding
@@ -45,10 +54,13 @@ class Generator(nn.Module):
         one_hot[range(x.shape[0]),target_emotions,:,:]=1
         x=torch.cat((x,one_hot),dim=1)
         
-        
         x=self.encoder(x)
-        #x=self.residual(x)????
-        x=self.decoder(x)
+            
+        for i in range(residual_blocks):
+            x = x + self.residual(x)
+            
+        x=self.decoder(x)#output is black and white
+        x=torch.cat((x,x,x),dim=1) #convert to 3 channels
         return x
 
 
@@ -62,16 +74,16 @@ class Discriminator(nn.Module):
             
         self.finallayers = nn.Sequential( 
             nn.Conv2d(in_channels=71, out_channels=128, kernel_size=4,stride=2,padding=1),
-            nn.BatchNorm2d(128,momentum=0.9),
+            nn.BatchNorm2d(128,momentum=0.1),
             nn.LeakyReLU(negative_slope=0.2),           
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=4,stride=2,padding=1),
-            nn.BatchNorm2d(256,momentum=0.9),
+            nn.BatchNorm2d(256,momentum=0.1),
             nn.LeakyReLU(negative_slope=0.2),
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4,stride=2,padding=1),
-            nn.BatchNorm2d(512,momentum=0.9),
+            nn.BatchNorm2d(512,momentum=0.1),
             nn.LeakyReLU(negative_slope=0.2),   
-            nn.Conv2d(in_channels=512, out_channels=1, kernel_size=10,stride=1,padding=1), #a fc layer
-            F.sigmoid()
+            nn.Conv2d(in_channels=512, out_channels=1, kernel_size=10,stride=1,padding=1) #a fc layer
+            
             )        
         
     def forward(self,x, target_emotions):
@@ -83,7 +95,8 @@ class Discriminator(nn.Module):
         x=torch.cat((x,one_hot),dim=1)        
         
         x=self.finallayers(x)
-        return x.reshape(x.shape[0],1) #batchsize, output
+        x = x.reshape(x.shape[0],1) #batchsize, output
+        return torch.sigmoid(x)
     
     
 
@@ -99,7 +112,7 @@ cfg = {
     'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
-class Classifier(nn.Module):#accepts images 48/48 for now
+class Classifier(nn.Module):
     def __init__(self, vgg_name='VGG19'):
         super(Classifier, self).__init__()
         self.features = self._make_layers(cfg[vgg_name])
@@ -107,6 +120,8 @@ class Classifier(nn.Module):#accepts images 48/48 for now
         
         weights = torch.load('ClassifierWeights', map_location='cpu')['net']
         self.load_state_dict(weights)
+        
+        
         
     def forward(self, x):
         out=F.interpolate(x, size=48,mode='bilinear', align_corners=False)#Jamal Resize
@@ -140,21 +155,29 @@ class FeatureNet(nn.Module):
         
 
 
-generator=Generator()
-discriminator = Discriminator()
 
-def get_data(batch_size=32):
+def get_data(batch_size=32, overfit=False):
+    '''
+    gets dataloaders for neutral and emotion datasets.
+    '''
     transform = transforms.Compose(
             [transforms.ToTensor(),
-             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])    
-    neutralset = torchvision.datasets.ImageFolder('../train/neutral', transform=transform)
+             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])    #Normalize outside
+    
+    
+    path='../train/neutral'
+    if overfit:
+        path+='overfit'
+    neutralset = torchvision.datasets.ImageFolder(path, transform=transform)
     
     neutral_loader = torch.utils.data.DataLoader(neutralset, batch_size=batch_size,
                                               num_workers=1, shuffle=True)
 
 
-        
-    emotionset = torchvision.datasets.ImageFolder('../train/emotions', transform=transform)
+    path='../train/emotions'
+    if overfit:
+        path+='overfit'    
+    emotionset = torchvision.datasets.ImageFolder(path, transform=transform)
     dataloaderclasses = emotionset.classes
     dataloaderclasses_map=emotionset.class_to_idx
     
@@ -168,17 +191,19 @@ def get_data(batch_size=32):
     
 
 #load saved parameters
-def train(generator,discriminator, batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-4, emotion_loss_weight=30): 
+def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False): 
     torch.manual_seed(1000)#set random seet for replicability
     
     #set to train mode for batch norm calculations
     generator.train(mode=True)
     discriminator.train(mode=True)
     
+    
+    #classifier and featurenet always in eval mode
     classifier = Classifier()
     featurenet = FeatureNet()    
     classifier.eval()
-    feature.eval()
+    featurenet.eval()
     
     optimizerG=optim.Adam(generator.parameters(), lr=lr)#add hyperparameters
     optimizerD=optim.Adam(discriminator.parameters(), lr=lr)
@@ -187,60 +212,154 @@ def train(generator,discriminator, batchsize=32,lr=0.001, gan_loss_weight=75, id
     DiscriminatorCriterion = nn.MSELoss()
     FeatureCriterion = nn.MSELoss()
     
-    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=32)
+    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=batchsize, overfit=overfit)
     
     for epoch in range(num_epochs):
         for emotion_pics, labels in emotion_loader:
-            
-            
+            print("Epoch",epoch)
             
             neutral_pics = next(iter(neutral_loader))[0]
+         
             
             labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
             
-            fakelabels = ((labels+np.random.randint(-10,10))*np.random.randint(1,7)) %7 #roughly a uniform transformation from any i in range(0,6) to j in range(0,6)
+            # get fakelables roughly uniform from every i to j and adjust so they aren't = to true labels
+            fakelabels = (torch.rand(len(labels))*7).type(torch.int64)
+            fakelabels+(fakelabels==labels).type(torch.int64)
+            fakelabels-=(fakelabels>6).type(torch.int64)*7
             
-            #forward pass
+
+            #forward pass for generator
+            optimizerG.zero_grad()
+            ######################################################################
             generated_pics = generator(neutral_pics, labels)
-            generated_out = discriminator(generated_pics, labels)
-            real_out = discriminator(emotion_pics, labels)
-            fakelabel_out = discriminator(emotion_pics, fakelabels)
+            generated_pics_norm = (generated_pics-0.5)/0.5
+            generated_out= discriminator(generated_pics_norm, labels)
             
             #feature loss
-            neutral_features = featurenet(neutral_pics)
-            generated_features = featurenet(generated_features)
-            feat_loss = FeatureCriterion(generated_features,neutral_features)
+            neutral_features = featurenet(neutral_pics) 
+            generated_features = featurenet(generated_pics_norm)
+            feat_loss = FeatureCriterion(generated_features,neutral_features) #both input images are normalized
             
             #classifier loss
-            class_preds= classifier(generated_features)
+            class_preds= classifier(generated_pics) #input the real pics. not normalized
             classifier_loss = ClassifierCriterion(class_preds, labels)
             
-            #GAN loss
-            D_loss = (0.5*torch.mean((real_out - 1)**2) + 0.25*torch.mean(generated_out**2) + 0.25*torch.mean(fakelabel_out**2)) *gan_loss_weight
-            G_loss = 0.5*torch.mean((generated_out-1)**2)
+            #GAN loss      
+            #G_loss = torch.mean((generated_out-1)**2)
+            G_loss = DiscriminatorCriterion(generated_out,torch.tensor(1).type(torch.float64))
             
             totalG_loss = gan_loss_weight*G_loss + identity_loss_weight*feat_loss + emotion_loss_weight*classifier_loss
-        
-            
-            #backward pass
-            optimizerD.zero_grad()
-            D_loss.backward()
-            optimizerD.step()
-            
-            optimizerG.zero_grad()
             totalG_loss.backward()
             optimizerG.step()
-        
-    
-    
-    
-    
-    
-    
-    #training done put in eval mode
+            print("G",totalG_loss)
+             
+            ###################################################################
+            #Discriminator Pass
+            optimizerD.zero_grad()
+            
+            #copy and detach so discriminator loss doesn't affect generator
+            generated_out= discriminator(generated_pics_norm.clone().detach(), labels) #discriminator takes normalized images -1,1.
+            real_out = discriminator(emotion_pics, labels)#emotion loader already normalizes pics
+            fakelabel_out = discriminator(emotion_pics, fakelabels)
+            
+            #D_loss = (0.5*torch.mean((real_out - 1)**2) + 0.25*torch.mean(generated_out**2) + 0.25*torch.mean(fakelabel_out**2)) *gan_loss_weight
+            D_loss =  (0.5*DiscriminatorCriterion(real_out,torch.tensor(1).type(torch.float64)) 
+                       + 0.25*DiscriminatorCriterion(generated_out,torch.tensor(0).type(torch.float64))
+                       + 0.25*DiscriminatorCriterion(fakelabel_out,torch.tensor(0).type(torch.float64))
+                       ) * gan_loss_weight
+                 
+            D_loss.backward(retain_graph=True)
+            optimizerD.step()
+            print("D",D_loss)
+            
+            if epoch%25 == 0:
+                d_params= discriminator.state_dict()
+                g_params = generator.state_dict()
+                
+                torch.save(d_params, 'checkpoints/discriminator'+str(epoch))
+                torch.save(g_params, 'checkpoints/generator'+str(epoch))
+            
+            
+            
+    #training done put in eval mode  
     discriminator.eval()
     generator.eval()
     
     
+def testclassfier():
+    correct=0
+    total=0
+    
+    classifier = Classifier()
+    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=32)
+    #i=0
+    for emotion_pics, labels in emotion_loader:
+        emo_labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
+        emo_preds = classifier(emotion_pics)
+        emo_correct = sum(torch.argmax(emo_preds, 1) == emo_labels)
+        print(emo_correct)
+        correct+=int(emo_correct)
+        
+        total+=labels.shape[0]
+        #i+=1
+        #if i>5:
+        #    break
+
+        
+    for neutral_pics, labels in neutral_loader:
+        neutral_labels=torch.zeros(32)
+        neutral_labels=6
+        neutral_preds = classifier(neutral_pics)
+        neutral_correct = sum(torch.argmax(neutral_preds, 1) == neutral_labels)
+        print(neutral_correct)
+        correct+=int(neutral_correct)
+        
+        total+=labels.shape[0]
+    return correct/total
+ 
+'''
+
+import matplotlib.pyplot as plt
+neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=2, overfit=True)
+for emotion_pics, labels in emotion_loader:
+    
+    neutral_pics = next(iter(neutral_loader))[0]
+ 
+    
+    labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
+    break
+
+out=(neutral_pics +1)/2
+im1=np.transpose(out[0,:,:].detach(), [1,2,0])
+im2=np.transpose(out[1,:,:].detach(), [1,2,0])
+plt.imshow(im1, cmap='gray')
+plt.show()
+plt.imshow(im2, cmap='gray')
+plt.show()    
+
+out=generator(neutral_pics, labels)
+im1=np.transpose(out[0,:,:].detach(), [1,2,0])
+im2=np.transpose(out[1,:,:].detach(), [1,2,0])
+plt.imshow(im1, cmap='gray')
+plt.show()
+plt.imshow(im2, cmap='gray')
+plt.show()
+
+out=(emotion_pics +1)/2
+im1=np.transpose(out[0,:,:].detach(), [1,2,0])
+im2=np.transpose(out[1,:,:].detach(), [1,2,0])
+plt.imshow(im1, cmap='gray')
+plt.show()
+plt.imshow(im2, cmap='gray')
+plt.show()
+
+'''
+
+if __name__=="__main__":
+    generator=Generator()
+    discriminator = Discriminator()    
+    train(generator,discriminator, num_epochs=500, batchsize=2,lr=0.001, gan_loss_weight=1, identity_loss_weight=0, emotion_loss_weight=0, overfit=True)
+
 
         

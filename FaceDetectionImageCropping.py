@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from autocrop import autocrop as ac
+#from autocrop import autocrop as ac
 from shutil import copy
 
 
@@ -69,13 +69,26 @@ def train_test_split(path="./Cropped128/", emotion_list = ["happy", "surprise"])
     # If a train and test folder don't exist, create them.
     if os.path.isdir("./train") == False:
         os.mkdir("./train")
+    if os.path.isdir("./train/neutral") == False:
+        os.mkdir("./train/neutral")
+    if os.path.isdir("./train/emotions") == False:
+        os.mkdir("./train/emotions")    
+    if os.path.isdir("./train/extras") == False:
+        os.mkdir("./train/extras")        
+    
     if os.path.isdir("./test") == False:
         os.mkdir("./test")
+    if os.path.isdir("./test/neutral") == False:
+        os.mkdir("./test/neutral")
+    if os.path.isdir("./test/emotions") == False:
+        os.mkdir("./test/emotions")    
+    if os.path.isdir("./test/extras") == False:
+        os.mkdir("./test/extras")        
 
     # For every person in the root folder
     for p_id in os.listdir(path):
         in_dir = path + p_id
-        if check_emotion(in_dir):
+        if check_emotion(in_dir, emotion_list=emotion_list):
             dest = "train"
         else:
             dest = "test"
@@ -83,7 +96,15 @@ def train_test_split(path="./Cropped128/", emotion_list = ["happy", "surprise"])
         # For every emotion in a person folder
         for img in os.listdir(in_dir):
             emo = img.split("_")[0]
-            new_dir = dest + "\\" + emo
+
+            if emo=="neutral":
+                new_dir=dest + "\\neutral\\neutral"
+            elif emo in emotion_list:
+                new_dir=dest + "\\emotions\\"+emo
+            else:
+                new_dir=dest + "\\extras\\"+emo
+     
+               
             # Make an emotion folder if it doesn't exist
             if os.path.isdir(new_dir) == False:
                 os.mkdir(new_dir)
@@ -121,4 +142,4 @@ def organize(path="./Cropped128/", dest="./OrganizedImages/"):
 if __name__ == "__main__":
     # crop()
     # organize()
-    train_test_split()
+    train_test_split(emotion_list = ['anger', 'disgust', 'fear', 'happy', 'sadness', 'surprise', 'neutral'])
