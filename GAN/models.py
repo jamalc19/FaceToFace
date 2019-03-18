@@ -323,15 +323,12 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             dpath='checkpoints/discriminator'
             gpath='checkpoints/generator'
             if colab:
-                gpath ="FaceToFace/GAN/"+gpath     
-                dpath ="FaceToFace/GAN/"+dpath     
+                gpath ="/content/gdrive/My Drive/APS360/Checkpoints/generator" 
+                dpath ="/content/gdrive/My Drive/APS360/Checkpoints/discriminator"   
             torch.save(d_params, dpath+str(epoch))
             torch.save(g_params, gpath+str(epoch))
             
-            if colab:
-                files.download(dpath+str(epoch))
-                files.download(gpath+str(epoch))
-            
+
             
             
     #training done put in eval mode  
