@@ -209,14 +209,17 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     optimizerD=optim.Adam(discriminator.parameters(), lr=lr)
     
     ClassifierCriterion = nn.CrossEntropyLoss()
-    DiscriminatorCriterion = nn.MSELoss()
+    DiscriminatorCriterion = nn.BCELoss()
     FeatureCriterion = nn.MSELoss()
+    fake_label = 0
+    real_label = 1
     
     neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=batchsize, overfit=overfit)
     
     for epoch in range(num_epochs):
+        print("Epoch",epoch)
         for emotion_pics, labels in emotion_loader:
-            print("Epoch",epoch)
+            
             
             neutral_pics = next(iter(neutral_loader))[0]
          
@@ -247,38 +250,40 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             
             #GAN loss      
             #G_loss = torch.mean((generated_out-1)**2)
-            G_loss = DiscriminatorCriterion(generated_out,torch.tensor(1).type(torch.float64))
+            G_loss = DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 1))
+            print("G",float(G_loss))
             
-            totalG_loss = gan_loss_weight*G_loss + identity_loss_weight*feat_loss + emotion_loss_weight*classifier_loss
+            totalG_loss = G_loss
+            #totalG_loss = gan_loss_weight*G_loss + identity_loss_weight*feat_loss + emotion_loss_weight*classifier_loss
             totalG_loss.backward()
             optimizerG.step()
-            print("G",totalG_loss)
+            
              
             ###################################################################
             #Discriminator Pass
             optimizerD.zero_grad()
             
-            #copy and detach so discriminator loss doesn't affect generator
+        
             generated_out= discriminator(generated_pics_norm.clone().detach(), labels) #discriminator takes normalized images -1,1.
             real_out = discriminator(emotion_pics, labels)#emotion loader already normalizes pics
             fakelabel_out = discriminator(emotion_pics, fakelabels)
             
-            #D_loss = (0.5*torch.mean((real_out - 1)**2) + 0.25*torch.mean(generated_out**2) + 0.25*torch.mean(fakelabel_out**2)) *gan_loss_weight
-            D_loss =  (0.5*DiscriminatorCriterion(real_out,torch.tensor(1).type(torch.float64)) 
-                       + 0.25*DiscriminatorCriterion(generated_out,torch.tensor(0).type(torch.float64))
-                       + 0.25*DiscriminatorCriterion(fakelabel_out,torch.tensor(0).type(torch.float64))
-                       ) * gan_loss_weight
+            #D_loss = (0.5*torch.mean((real_out - 1)**2) + 0.25*torch.mean(generated_out**2) + 0.25*torch.mean(fakelabel_out**2)) 
+            D_loss = DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 0)) + DiscriminatorCriterion(real_out, torch.full((generated_out.shape[0],1), 1))
+            print("D",float(D_loss))
+            D_loss*=gan_loss_weight
                  
-            D_loss.backward(retain_graph=True)
+            D_loss.backward()
             optimizerD.step()
-            print("D",D_loss)
+        
+        
             
-            if epoch%25 == 0:
-                d_params= discriminator.state_dict()
-                g_params = generator.state_dict()
+        if epoch%25 == 0:
+            d_params= discriminator.state_dict()
+            g_params = generator.state_dict()
                 
-                torch.save(d_params, 'checkpoints/discriminator'+str(epoch))
-                torch.save(g_params, 'checkpoints/generator'+str(epoch))
+            torch.save(d_params, 'checkpoints/discriminator'+str(epoch))
+            torch.save(g_params, 'checkpoints/generator'+str(epoch))
             
             
             
@@ -355,11 +360,20 @@ plt.imshow(im2, cmap='gray')
 plt.show()
 
 '''
-
+def load_model(epoch):
+    generator=Generator()
+    weights = torch.load('checkpoints/generator'+str(epoch))
+    generator.load_state_dict(weights)    
+    
+    discriminator = Discriminator()    
+    weights = torch.load('checkpoints/discriminator'+str(epoch))
+    discriminator.load_state_dict(weights)    
+    return generator, discriminator
+    
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    train(generator,discriminator, num_epochs=500, batchsize=2,lr=0.001, gan_loss_weight=1, identity_loss_weight=0, emotion_loss_weight=0, overfit=True)
+    train(generator,discriminator, num_epochs=32, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=False)
 
 
         
