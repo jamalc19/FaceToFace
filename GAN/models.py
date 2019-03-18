@@ -353,9 +353,7 @@ def plot_loss(G_Losses, D_Losses):
     plt.legend(loc='best')
     plt.show()
 
-def testdir():
-    import os
-    print(os.listdir())
+
     
 def testclassfier(colab=False):
     correct=0
