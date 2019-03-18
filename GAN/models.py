@@ -188,12 +188,11 @@ def get_data(batch_size=32, overfit=False, colab=True):
         path+='overfit'    
     emotionset = torchvision.datasets.ImageFolder(path, transform=transform)
     dataloaderclasses = emotionset.classes
-    dataloaderclasses_map=emotionset.class_to_idx
     
     emotion_loader=torch.utils.data.DataLoader(emotionset, batch_size=batch_size,
                                               num_workers=1, shuffle=True)
     
-    return neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map
+    return neutral_loader, emotion_loader, dataloaderclasses
 
 
 
@@ -233,7 +232,7 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     fake_label = 0
     real_label = 1
     
-    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=batchsize, overfit=overfit, colab=colab)
+    neutral_loader, emotion_loader, dataloaderclasses = get_data(batch_size=batchsize, overfit=overfit, colab=colab)
     
     for epoch in range(num_epochs):
         print("Epoch",epoch)
@@ -253,10 +252,10 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             fakelabels-=(fakelabels>6).type(torch.int64)*7
             
             if colab:
-                emotion_pics.cuda()
-                neutral_pics.cuda()
-                labels.cuda()
-                fakelabels.cuda()
+                emotion_pics = emotion_pics.cuda()
+                neutral_pics = neutral_pics.cuda()
+                labels = labels.cuda()
+                fakelabels = fakelabels.cuda()
             
 
             #forward pass for generator
@@ -353,7 +352,7 @@ def testclassfier(colab=False):
     total=0
     
     classifier = Classifier(colab=colab)
-    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=32, colab=colab)
+    neutral_loader, emotion_loader, dataloaderclasses= get_data(batch_size=32, colab=colab)
     #i=0
     for emotion_pics, labels in emotion_loader:
         emo_labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
@@ -382,7 +381,7 @@ def testclassfier(colab=False):
 
 
 def visualize_sample(generator, colab=True):
-    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=2, overfit=True, colab=colab)
+    neutral_loader, emotion_loader, dataloaderclasses = get_data(batch_size=2, overfit=True, colab=colab)
     for emotion_pics, labels in emotion_loader:
     
         neutral_pics = next(iter(neutral_loader))[0]
