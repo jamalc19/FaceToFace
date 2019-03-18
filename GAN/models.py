@@ -202,13 +202,14 @@ def get_data(batch_size=32, overfit=False, colab=True):
 #load saved parameters
 def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False, colab=True): 
     torch.manual_seed(1000)#set random seet for replicability
-    if colab:
-        from google.colab import files
+
     
     #set to train mode for batch norm calculations
     generator.train(mode=True)
     discriminator.train(mode=True)
     
+    G_Losses=[]
+    D_Losses=[]
     
     #classifier and featurenet always in eval mode
     classifier = Classifier(colab=colab)
@@ -218,6 +219,13 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     
     optimizerG=optim.Adam(generator.parameters(), lr=lr)#add hyperparameters
     optimizerD=optim.Adam(discriminator.parameters(), lr=lr)
+    
+    if colab:
+        from google.colab import files
+        generator.cuda()
+        discriminator.cuda()
+        classifier.cuda()
+        featurenet.cuda()
     
     ClassifierCriterion = nn.CrossEntropyLoss()
     DiscriminatorCriterion = nn.BCELoss()
@@ -229,6 +237,8 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     
     for epoch in range(num_epochs):
         print("Epoch",epoch)
+        epoch_g_loss=0
+        epoch_d_loss=0
         for emotion_pics, labels in emotion_loader:
             
             
@@ -241,6 +251,12 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             fakelabels = (torch.rand(len(labels))*7).type(torch.int64)
             fakelabels+(fakelabels==labels).type(torch.int64)
             fakelabels-=(fakelabels>6).type(torch.int64)*7
+            
+            if colab:
+                emotion_pics.cuda()
+                neutral_pics.cuda()
+                labels.cuda()
+                fakelabels.cuda()
             
 
             #forward pass for generator
@@ -261,7 +277,9 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             
             #GAN loss      
             #G_loss = torch.mean((generated_out-1)**2)
-            G_loss = DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 1))
+            
+            
+            G_loss = DiscriminatorCriterion(generated_out, torch.ones_like(generated_out))
             
             totalG_loss = gan_loss_weight*G_loss + identity_loss_weight*feat_loss + emotion_loss_weight*classifier_loss
             totalG_loss.backward()
@@ -278,18 +296,21 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             fakelabel_out = discriminator(emotion_pics, fakelabels)
             
             
-            rawD_loss = (0.25*DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 0)) + 
-                      0.5*DiscriminatorCriterion(real_out, torch.full((generated_out.shape[0],1), 1)) +
-                      0.25*DiscriminatorCriterion(fakelabel_out, torch.full((fakelabel_out.shape[0],1), 1)))
+            rawD_loss = (0.25*DiscriminatorCriterion(generated_out,torch.zeros_like(generated_out)) + 
+                      0.5*DiscriminatorCriterion(real_out, torch.ones_like(real_out)) +
+                      0.25*DiscriminatorCriterion(fakelabel_out, torch.zeros_like(fakelabel_out)))
             
             D_loss=rawD_loss*gan_loss_weight
                  
             D_loss.backward()
             optimizerD.step()
         
-        print("G",float(G_loss))
-        print("D",float(rawD_loss)) 
-        i
+            print("G",float(totalG_loss))
+            print("D",float(D_loss)) 
+            epoch_g_loss+=float(totalG_loss)
+            epoch_d_loss+=float(D_loss)
+        G_Losses.append(epoch_g_loss)
+        D_Losses.append(epoch_d_loss)
         if epoch%25 == 0 or colab:
             d_params= discriminator.state_dict()
             g_params = generator.state_dict()
@@ -301,14 +322,30 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             torch.save(d_params, dpath+str(epoch))
             torch.save(g_params, gpath+str(epoch))
             
-            files.download(dpath+str(epoch))
-            files.download(gpath+str(epoch))
+            if colab:
+                files.download(dpath+str(epoch))
+                files.download(gpath+str(epoch))
             
             
             
     #training done put in eval mode  
     discriminator.eval()
     generator.eval()
+    
+    plot_loss(G_Losses, D_Losses)
+    
+    return G_Losses, D_Losses
+
+def plot_loss(G_Losses, D_Losses):
+    plt.title("G and D Losses")
+    
+    size = len(G_Losses)
+    plt.plot(range(size), G_Losses, label="Generator")
+    plt.plot(range(size), D_Losses, label="Discriminator")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend(loc='best')
+    plt.show()
     
     
 def testclassfier(colab=False):
@@ -399,7 +436,7 @@ def load_model(epoch, colab=True):
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    train(generator,discriminator, num_epochs=2, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
+    gloss, dloss = train(generator,discriminator, num_epochs=10, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
 
 
         
