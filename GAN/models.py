@@ -47,7 +47,7 @@ class Generator(nn.Module):
             )
 
     
-    def forward(self,x, target_emotions, residual_blocks=6, cuda=cuda):
+    def forward(self,x, target_emotions, residual_blocks=6, cuda=True):
         #torch.eye(7)[target_emotions]
         
         #inject one hot encoding
@@ -90,7 +90,7 @@ class Discriminator(nn.Module):
             
             )        
         
-    def forward(self,x, target_emotions, cuda=cuda):
+    def forward(self,x, target_emotions, cuda=True):
         x=self.initiallayers(x)
         
         #inject one hot encoding
