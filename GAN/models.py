@@ -209,7 +209,7 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     
     
     #classifier and featurenet always in eval mode
-    classifier = Classifier()
+    classifier = Classifier(colab=colab)
     featurenet = FeatureNet()    
     classifier.eval()
     featurenet.eval()
@@ -278,7 +278,7 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             
             rawD_loss = (0.25*DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 0)) + 
                       0.5*DiscriminatorCriterion(real_out, torch.full((generated_out.shape[0],1), 1)) +
-                      0.25*DiscriminatorCriterion(fakelabel_out, torch.full((fakelabel_out.shape[0],0), 0)))
+                      0.25*DiscriminatorCriterion(fakelabel_out, torch.full((fakelabel_out.shape[0],1), 1)))
             
             D_loss=rawD_loss*gan_loss_weight
                  
@@ -393,7 +393,7 @@ def load_model(epoch, colab=True):
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    train(generator,discriminator, num_epochs=32, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=False, colab=False)
+    train(generator,discriminator, num_epochs=2, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
 
 
         
