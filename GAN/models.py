@@ -309,8 +309,8 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             D_loss.backward()
             optimizerD.step()
         
-            print("G",float(totalG_loss))
-            print("D",float(D_loss)) 
+            #print("G",float(totalG_loss))
+            #print("D",float(D_loss)) 
             epoch_g_loss+=float(totalG_loss)
             epoch_d_loss+=float(D_loss)
         G_Losses.append(epoch_g_loss)
