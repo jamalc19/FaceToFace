@@ -428,20 +428,20 @@ def visualize_sample(generator, colab=True):
 
 def load_model(epoch, colab=True):
     generator=Generator()
-    path='checkpoints/generator'
     if colab:
-        path ="FaceToFace/GAN/"+path
+        path ="/content/gdrive/My Drive/APS360/Checkpoints/generator" 
         weights = torch.load(path+str(epoch))
     else:
+        path='checkpoints/generator'
         weights = torch.load(path+str(epoch), map_location='cpu')
     generator.load_state_dict(weights)    
     
     discriminator = Discriminator()    
-    path='checkpoints/discriminator'
     if colab:
-        path ="FaceToFace/GAN/"+path    
+        path ="/content/gdrive/My Drive/APS360/Checkpoints/discriminator"    
         weights = torch.load(path+str(epoch))
     else:
+        path='checkpoints/discriminator'
         weights = torch.load(path+str(epoch), map_location='cpu')
     discriminator.load_state_dict(weights)    
     return generator, discriminator
