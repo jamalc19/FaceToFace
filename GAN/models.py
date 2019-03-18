@@ -184,7 +184,7 @@ def get_data(batch_size=32, overfit=False, colab=True):
     neutralset = torchvision.datasets.ImageFolder(path, transform=transform)
     
     neutral_loader = torch.utils.data.DataLoader(neutralset, batch_size=batch_size,
-                                              num_workers=1, shuffle=True)
+                                              num_workers=1, shuffle=True, drop_last=True)
 
 
     path='../train/emotions'
@@ -196,7 +196,7 @@ def get_data(batch_size=32, overfit=False, colab=True):
     dataloaderclasses = emotionset.classes
     
     emotion_loader=torch.utils.data.DataLoader(emotionset, batch_size=batch_size,
-                                              num_workers=1, shuffle=True)
+                                              num_workers=1, shuffle=True, drop_last=True)
     
     return neutral_loader, emotion_loader, dataloaderclasses
 
