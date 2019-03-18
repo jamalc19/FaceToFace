@@ -352,7 +352,10 @@ def plot_loss(G_Losses, D_Losses):
     plt.ylabel("Loss")
     plt.legend(loc='best')
     plt.show()
-    
+
+def testdir():
+    import os
+    print(os.listdir())
     
 def testclassfier(colab=False):
     correct=0
@@ -396,6 +399,12 @@ def visualize_sample(generator, colab=True):
     
         labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
         break
+    
+    if colab:
+        neutral_pics=neutral_pics.cuda()
+        emotion_pics=emotion_pics.cuda()
+        labels=labels.cuda()
+        generator.cuda()
 
     out=(neutral_pics +1)/2
     im1=np.transpose(out[0,:,:].detach(), [1,2,0])
@@ -405,7 +414,7 @@ def visualize_sample(generator, colab=True):
     plt.imshow(im2, cmap='gray')
     plt.show()    
 
-    out=generator(neutral_pics, labels)
+    out=generator(neutral_pics, labels,cuda=colab)
     im1=np.transpose(out[0,:,:].detach(), [1,2,0])
     im2=np.transpose(out[1,:,:].detach(), [1,2,0])
     plt.imshow(im1, cmap='gray')
@@ -427,14 +436,18 @@ def load_model(epoch, colab=True):
     path='checkpoints/generator'
     if colab:
         path ="FaceToFace/GAN/"+path
-    weights = torch.load(path+str(epoch))
+        weights = torch.load(path+str(epoch))
+    else:
+        weights = torch.load(path+str(epoch), map_location='cpu')
     generator.load_state_dict(weights)    
     
     discriminator = Discriminator()    
     path='checkpoints/discriminator'
     if colab:
         path ="FaceToFace/GAN/"+path    
-    weights = torch.load(path+str(epoch))
+        weights = torch.load(path+str(epoch))
+    else:
+        weights = torch.load(path+str(epoch), map_location='cpu')
     discriminator.load_state_dict(weights)    
     return generator, discriminator
 
@@ -442,7 +455,7 @@ def load_model(epoch, colab=True):
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    gloss, dloss = train(generator,discriminator, num_epochs=10, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
+    #gloss, dloss = train(generator,discriminator, num_epochs=10, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
 
 
         
