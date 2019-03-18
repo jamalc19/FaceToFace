@@ -47,12 +47,15 @@ class Generator(nn.Module):
             )
 
     
-    def forward(self,x, target_emotions, residual_blocks=6):
+    def forward(self,x, target_emotions, residual_blocks=6, cuda=cuda):
         #torch.eye(7)[target_emotions]
         
         #inject one hot encoding
         one_hot=torch.zeros(x.shape[0], 7,128,128)
         one_hot[range(x.shape[0]),target_emotions,:,:]=1
+        if cuda:
+            one_hot=one_hot.cuda()
+        
         x=torch.cat((x,one_hot),dim=1)
         
         x=self.encoder(x)
@@ -87,12 +90,14 @@ class Discriminator(nn.Module):
             
             )        
         
-    def forward(self,x, target_emotions):
+    def forward(self,x, target_emotions, cuda=cuda):
         x=self.initiallayers(x)
         
         #inject one hot encoding
         one_hot=torch.zeros(x.shape[0], 7,64,64)
         one_hot[range(x.shape[0]),target_emotions,:,:]=1  
+        if cuda:
+            one_hot=one_hot.cuda()        
         x=torch.cat((x,one_hot),dim=1)        
         
         x=self.finallayers(x)
@@ -261,9 +266,9 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             #forward pass for generator
             optimizerG.zero_grad()
             ######################################################################
-            generated_pics = generator(neutral_pics, labels)
+            generated_pics = generator(neutral_pics, labels, cuda=colab)
             generated_pics_norm = (generated_pics-0.5)/0.5
-            generated_out= discriminator(generated_pics_norm, labels)
+            generated_out= discriminator(generated_pics_norm, labels, cuda=colab)
             
             #feature loss
             neutral_features = featurenet(neutral_pics) 
@@ -290,9 +295,9 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             optimizerD.zero_grad()
             
         
-            generated_out= discriminator(generated_pics_norm.clone().detach(), labels) #discriminator takes normalized images -1,1.
-            real_out = discriminator(emotion_pics, labels)#emotion loader already normalizes pics
-            fakelabel_out = discriminator(emotion_pics, fakelabels)
+            generated_out= discriminator(generated_pics_norm.clone().detach(), labels, cuda=colab) #discriminator takes normalized images -1,1.
+            real_out = discriminator(emotion_pics, labels, cuda=colab)#emotion loader already normalizes pics
+            fakelabel_out = discriminator(emotion_pics, fakelabels, cuda=colab)
             
             
             rawD_loss = (0.25*DiscriminatorCriterion(generated_out,torch.zeros_like(generated_out)) + 
