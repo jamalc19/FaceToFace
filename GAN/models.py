@@ -323,7 +323,8 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             dpath='checkpoints/discriminator'
             gpath='checkpoints/generator'
             if colab:
-                path ="FaceToFace/GAN/"+path               
+                gpath ="FaceToFace/GAN/"+gpath     
+                dpath ="FaceToFace/GAN/"+dpath     
             torch.save(d_params, dpath+str(epoch))
             torch.save(g_params, gpath+str(epoch))
             
