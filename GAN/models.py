@@ -202,6 +202,8 @@ def get_data(batch_size=32, overfit=False, colab=True):
 #load saved parameters
 def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False, colab=True): 
     torch.manual_seed(1000)#set random seet for replicability
+    if colab:
+        from google.colab import files
     
     #set to train mode for batch norm calculations
     generator.train(mode=True)
@@ -297,6 +299,9 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
                 path ="FaceToFace/GAN/"+path               
             torch.save(d_params, dpath+str(epoch))
             torch.save(g_params, gpath+str(epoch))
+            
+            files.download(dpath+str(epoch))
+            files.download(gpath+str(epoch))
             
             
             
