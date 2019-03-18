@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import matplotlib.pyplot as plt
 
 
 class_names = ['anger', 'disgust', 'fear', 'happy', 'sadness', 'surprise', 'neutral']
@@ -113,12 +114,15 @@ cfg = {
 }
 
 class Classifier(nn.Module):
-    def __init__(self, vgg_name='VGG19'):
+    def __init__(self, vgg_name='VGG19', colab=True):
         super(Classifier, self).__init__()
         self.features = self._make_layers(cfg[vgg_name])
         self.classifier = nn.Linear(512, 7)
         
-        weights = torch.load('ClassifierWeights', map_location='cpu')['net']
+        path='ClassifierWeights'
+        if colab:
+            path = "FaceToFace/GAN/ClassifierWeights"
+        weights = torch.load(path, map_location='cpu')['net']
         self.load_state_dict(weights)
         
         
@@ -156,7 +160,7 @@ class FeatureNet(nn.Module):
 
 
 
-def get_data(batch_size=32, overfit=False):
+def get_data(batch_size=32, overfit=False, colab=True):
     '''
     gets dataloaders for neutral and emotion datasets.
     '''
@@ -166,8 +170,11 @@ def get_data(batch_size=32, overfit=False):
     
     
     path='../train/neutral'
+    if colab:
+        path="FaceToFace/train/neutral"
     if overfit:
         path+='overfit'
+    
     neutralset = torchvision.datasets.ImageFolder(path, transform=transform)
     
     neutral_loader = torch.utils.data.DataLoader(neutralset, batch_size=batch_size,
@@ -175,6 +182,8 @@ def get_data(batch_size=32, overfit=False):
 
 
     path='../train/emotions'
+    if colab:
+        path="FaceToFace/train/emotions"    
     if overfit:
         path+='overfit'    
     emotionset = torchvision.datasets.ImageFolder(path, transform=transform)
@@ -191,7 +200,7 @@ def get_data(batch_size=32, overfit=False):
     
 
 #load saved parameters
-def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False): 
+def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False, colab=True): 
     torch.manual_seed(1000)#set random seet for replicability
     
     #set to train mode for batch norm calculations
@@ -214,7 +223,7 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     fake_label = 0
     real_label = 1
     
-    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=batchsize, overfit=overfit)
+    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=batchsize, overfit=overfit, colab=colab)
     
     for epoch in range(num_epochs):
         print("Epoch",epoch)
@@ -251,10 +260,8 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             #GAN loss      
             #G_loss = torch.mean((generated_out-1)**2)
             G_loss = DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 1))
-            print("G",float(G_loss))
             
-            totalG_loss = G_loss
-            #totalG_loss = gan_loss_weight*G_loss + identity_loss_weight*feat_loss + emotion_loss_weight*classifier_loss
+            totalG_loss = gan_loss_weight*G_loss + identity_loss_weight*feat_loss + emotion_loss_weight*classifier_loss
             totalG_loss.backward()
             optimizerG.step()
             
@@ -268,22 +275,28 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             real_out = discriminator(emotion_pics, labels)#emotion loader already normalizes pics
             fakelabel_out = discriminator(emotion_pics, fakelabels)
             
-            #D_loss = (0.5*torch.mean((real_out - 1)**2) + 0.25*torch.mean(generated_out**2) + 0.25*torch.mean(fakelabel_out**2)) 
-            D_loss = DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 0)) + DiscriminatorCriterion(real_out, torch.full((generated_out.shape[0],1), 1))
-            print("D",float(D_loss))
-            D_loss*=gan_loss_weight
+            
+            rawD_loss = (0.25*DiscriminatorCriterion(generated_out, torch.full((generated_out.shape[0],1), 0)) + 
+                      0.5*DiscriminatorCriterion(real_out, torch.full((generated_out.shape[0],1), 1)) +
+                      0.25*DiscriminatorCriterion(fakelabel_out, torch.full((fakelabel_out.shape[0],0), 0)))
+            
+            D_loss=rawD_loss*gan_loss_weight
                  
             D_loss.backward()
             optimizerD.step()
         
-        
-            
+        print("G",float(G_loss))
+        print("D",float(rawD_loss)) 
         if epoch%25 == 0:
             d_params= discriminator.state_dict()
             g_params = generator.state_dict()
                 
-            torch.save(d_params, 'checkpoints/discriminator'+str(epoch))
-            torch.save(g_params, 'checkpoints/generator'+str(epoch))
+            dpath='checkpoints/discriminator'
+            gpath='checkpoints/generator'
+            if colab:
+                path ="FaceToFace/GAN/"+path               
+            torch.save(d_params, dpath+str(epoch))
+            torch.save(g_params, gpath+str(epoch))
             
             
             
@@ -292,12 +305,12 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     generator.eval()
     
     
-def testclassfier():
+def testclassfier(colab=False):
     correct=0
     total=0
     
-    classifier = Classifier()
-    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=32)
+    classifier = Classifier(colab=colab)
+    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=32, colab=colab)
     #i=0
     for emotion_pics, labels in emotion_loader:
         emo_labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
@@ -323,57 +336,64 @@ def testclassfier():
         total+=labels.shape[0]
     return correct/total
  
-'''
 
-import matplotlib.pyplot as plt
-neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=2, overfit=True)
-for emotion_pics, labels in emotion_loader:
+
+def visualize_sample(generator, colab=True):
+    neutral_loader, emotion_loader, dataloaderclasses, dataloaderclasses_map = get_data(batch_size=2, overfit=True, colab=colab)
+    for emotion_pics, labels in emotion_loader:
     
-    neutral_pics = next(iter(neutral_loader))[0]
+        neutral_pics = next(iter(neutral_loader))[0]
  
     
-    labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
-    break
+        labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
+        break
 
-out=(neutral_pics +1)/2
-im1=np.transpose(out[0,:,:].detach(), [1,2,0])
-im2=np.transpose(out[1,:,:].detach(), [1,2,0])
-plt.imshow(im1, cmap='gray')
-plt.show()
-plt.imshow(im2, cmap='gray')
-plt.show()    
+    out=(neutral_pics +1)/2
+    im1=np.transpose(out[0,:,:].detach(), [1,2,0])
+    im2=np.transpose(out[1,:,:].detach(), [1,2,0])
+    plt.imshow(im1, cmap='gray')
+    plt.show()
+    plt.imshow(im2, cmap='gray')
+    plt.show()    
 
-out=generator(neutral_pics, labels)
-im1=np.transpose(out[0,:,:].detach(), [1,2,0])
-im2=np.transpose(out[1,:,:].detach(), [1,2,0])
-plt.imshow(im1, cmap='gray')
-plt.show()
-plt.imshow(im2, cmap='gray')
-plt.show()
+    out=generator(neutral_pics, labels)
+    im1=np.transpose(out[0,:,:].detach(), [1,2,0])
+    im2=np.transpose(out[1,:,:].detach(), [1,2,0])
+    plt.imshow(im1, cmap='gray')
+    plt.show()
+    plt.imshow(im2, cmap='gray')
+    plt.show()
 
-out=(emotion_pics +1)/2
-im1=np.transpose(out[0,:,:].detach(), [1,2,0])
-im2=np.transpose(out[1,:,:].detach(), [1,2,0])
-plt.imshow(im1, cmap='gray')
-plt.show()
-plt.imshow(im2, cmap='gray')
-plt.show()
+    out=(emotion_pics +1)/2
+    im1=np.transpose(out[0,:,:].detach(), [1,2,0])
+    im2=np.transpose(out[1,:,:].detach(), [1,2,0])
+    plt.imshow(im1, cmap='gray')
+    plt.show()
+    plt.imshow(im2, cmap='gray')
+    plt.show()
 
-'''
-def load_model(epoch):
+
+def load_model(epoch, colab=True):
     generator=Generator()
-    weights = torch.load('checkpoints/generator'+str(epoch))
+    path='checkpoints/generator'
+    if colab:
+        path ="FaceToFace/GAN/"+path
+    weights = torch.load(path+str(epoch))
     generator.load_state_dict(weights)    
     
     discriminator = Discriminator()    
-    weights = torch.load('checkpoints/discriminator'+str(epoch))
+    path='checkpoints/discriminator'
+    if colab:
+        path ="FaceToFace/GAN/"+path    
+    weights = torch.load(path+str(epoch))
     discriminator.load_state_dict(weights)    
     return generator, discriminator
+
     
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    train(generator,discriminator, num_epochs=32, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=False)
+    train(generator,discriminator, num_epochs=32, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=False, colab=False)
 
 
         
