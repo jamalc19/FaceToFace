@@ -289,7 +289,8 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
         
         print("G",float(G_loss))
         print("D",float(rawD_loss)) 
-        if epoch%25 == 0:
+        i
+        if epoch%25 == 0 or colab:
             d_params= discriminator.state_dict()
             g_params = generator.state_dict()
                 
