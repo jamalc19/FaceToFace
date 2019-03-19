@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import matplotlib.pyplot as plt
+import pickle
 
 
 class_names = ['anger', 'disgust', 'fear', 'happy', 'sadness', 'surprise', 'neutral']
@@ -205,7 +206,7 @@ def get_data(batch_size=32, overfit=False, colab=True):
     
 
 #load saved parameters
-def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False, colab=True): 
+def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False, colab=True): 
     torch.manual_seed(1000)#set random seet for replicability
 
     
@@ -213,8 +214,19 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     generator.train(mode=True)
     discriminator.train(mode=True)
     
-    G_Losses=[]
-    D_Losses=[]
+    Losses={}
+    Losses['G_Losses']=[]
+    Losses['Classifier_Losses']=[]
+    Losses['Feature_Losses']=[]
+    
+    Losses['D_Real_Losses']=[]
+    Losses['D_Fake_Losses']=[]
+    Losses['D_Generator_Losses']=[]
+    
+    Losses['TotalD_Losses']=[]
+    Losses['TotalG_Losses']=[]
+    
+    
     
     #classifier and featurenet always in eval mode
     classifier = Classifier(colab=colab)
@@ -226,7 +238,7 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
     optimizerD=optim.Adam(discriminator.parameters(), lr=lr)
     
     if colab:
-        from google.colab import files
+       
         generator.cuda()
         discriminator.cuda()
         classifier.cuda()
@@ -274,23 +286,27 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             #feature loss
             neutral_features = featurenet(neutral_pics) 
             generated_features = featurenet(generated_pics_norm)
-            feat_loss = FeatureCriterion(generated_features,neutral_features) #both input images are normalized
+            feat_loss = FeatureCriterion(generated_features,neutral_features)*identity_loss_weight #both input images are normalized
             
             #classifier loss
             class_preds= classifier(generated_pics) #input the real pics. not normalized
-            classifier_loss = ClassifierCriterion(class_preds, labels)
+            classifier_loss = ClassifierCriterion(class_preds, labels)*emotion_loss_weight
             
             #GAN loss      
             #G_loss = torch.mean((generated_out-1)**2)
             
             
-            G_loss = DiscriminatorCriterion(generated_out, torch.ones_like(generated_out))
+            G_loss = DiscriminatorCriterion(generated_out, torch.ones_like(generated_out))*gan_loss_weight
             
-            totalG_loss = gan_loss_weight*G_loss + identity_loss_weight*feat_loss + emotion_loss_weight*classifier_loss
+            totalG_loss = G_loss + feat_loss + classifier_loss
             totalG_loss.backward()
             optimizerG.step()
             
-             
+            Losses['G_Losses'].append(G_loss)
+            Losses['Classifier_Losses'].append(classifier_loss)
+            Losses['Feature_Losses'].append(feat_loss)
+            Losses['TotalG_Losses'].append(totalG_loss)
+            
             ###################################################################
             #Discriminator Pass
             optimizerD.zero_grad()
@@ -301,53 +317,55 @@ def train(generator,discriminator, num_epochs, batchsize=32,lr=0.001, gan_loss_w
             fakelabel_out = discriminator(emotion_pics, fakelabels, cuda=colab)
             
             
-            rawD_loss = (0.25*DiscriminatorCriterion(generated_out,torch.zeros_like(generated_out)) + 
-                      0.5*DiscriminatorCriterion(real_out, torch.ones_like(real_out)) +
-                      0.25*DiscriminatorCriterion(fakelabel_out, torch.zeros_like(fakelabel_out)))
+            generatedD_loss = 0.25*DiscriminatorCriterion(generated_out,torch.zeros_like(generated_out)) *gan_loss_weight
+            realD_loss =  0.5*DiscriminatorCriterion(real_out, torch.ones_like(real_out)) *gan_loss_weight
+            fakeD_loss = 0.25*DiscriminatorCriterion(fakelabel_out, torch.zeros_like(fakelabel_out)) *gan_loss_weight
             
-            D_loss=rawD_loss*gan_loss_weight
+            D_loss=generatedD_loss + realD_loss + fakeD_loss
                  
             D_loss.backward()
             optimizerD.step()
+            
+            Losses['D_Real_Losses'].append(realD_loss)
+            Losses['D_Fake_Losses'].append(fakeD_loss)
+            Losses['D_Generator_Losses'].append(generatedD_loss)
+            
+            Losses['TotalD_Losses'].append(D_loss)
+                        
         
             #print("G",float(totalG_loss))
-            #print("D",float(D_loss)) 
-            epoch_g_loss+=float(totalG_loss)
-            epoch_d_loss+=float(D_loss)
-        G_Losses.append(epoch_g_loss)
-        D_Losses.append(epoch_d_loss)
         if epoch%25 == 0 or colab:
             d_params= discriminator.state_dict()
             g_params = generator.state_dict()
                 
-            dpath='checkpoints/discriminator'
-            gpath='checkpoints/generator'
-            if colab:
-                gpath ="/content/gdrive/My Drive/APS360/Checkpoints/generator" 
-                dpath ="/content/gdrive/My Drive/APS360/Checkpoints/discriminator"   
-            torch.save(d_params, dpath+str(epoch))
-            torch.save(g_params, gpath+str(epoch))
-            
 
-            
+            path='checkpoints'
+            if colab:
+                path ="/content/gdrive/My Drive/APS360/Checkpoints"+checkpointfolder
+                if epoch%5==0:
+                    pickle.dump(Losses,open(path+'/Losses'+str(epoch), 'wb'))
+            torch.save(d_params, path+'/discriminator'+str(epoch))
+            torch.save(g_params, path+'/generator'+str(epoch))
             
     #training done put in eval mode  
     discriminator.eval()
     generator.eval()
     
-    plot_loss(G_Losses, D_Losses)
+    plot_loss(Losses)
     
-    return G_Losses, D_Losses
+    return Losses
 
-def plot_loss(G_Losses, D_Losses):
-    plt.title("G and D Losses")
     
-    size = len(G_Losses)
-    plt.plot(range(size), G_Losses, label="Generator")
-    plt.plot(range(size), D_Losses, label="Discriminator")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend(loc='best')
+def plot_loss(Losses):
+    plt.title("Losses")
+    losses=list(Losses.keys())
+    
+    size = len(Losses[losses[0]])
+    for loss in losses:
+        plt.plot(range(size), Losses[loss], label=loss)
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend(loc='best')
     plt.show()
 
 
@@ -385,30 +403,45 @@ def testclassfier(colab=False):
  
 
 
-def visualize_sample(generator, colab=True):
-    neutral_loader, emotion_loader, dataloaderclasses = get_data(batch_size=2, overfit=True, colab=colab)
-    for emotion_pics, labels in emotion_loader:
-    
-        neutral_pics = next(iter(neutral_loader))[0]
- 
-    
-        labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
-        break
-    
+def visualize_sample(generator,  colab=True):
+    neutral_loader, emotion_loader, dataloaderclasses = get_data(batch_size=1, overfit=False, colab=colab)
     if colab:
-        neutral_pics=neutral_pics.cuda()
-        emotion_pics=emotion_pics.cuda()
-        labels=labels.cuda()
         generator.cuda()
+    for neutral_pics, labels in neutral_loader:
+        if colab:
+            neutral_pics=neutral_pics.cuda()
+            labels=labels.cuda()
 
-    out=(neutral_pics +1)/2
+        neutral=(neutral_pics +1)/2
+        
+    
+        fig, axes = plt.subplots(2,4)
+        axes[0][0].imshow(np.transpose(neutral[0,:,:,:].detach(), [1,2,0]), cmap='gray')
+        axes[0][0].set_title('Neutral (input)')        
+        for i in range(6):
+            emotion = class_names[i]
+            labels[:] = i
+            out = generator(neutral_pics, labels,cuda=colab)
+            
+            ax=axes[(i+1)//4][(i+1)%4]
+            ax.imshow(np.transpose(out[0,:,:,:].detach(), [1,2,0]), cmap='gray')
+            ax.set_title(emotion)    
+        plt.show()
+        break
+                                
+                
+                
+    ''' 
     im1=np.transpose(out[0,:,:].detach(), [1,2,0])
     im2=np.transpose(out[1,:,:].detach(), [1,2,0])
     plt.imshow(im1, cmap='gray')
     plt.show()
     plt.imshow(im2, cmap='gray')
-    plt.show()    
+    plt.show()  
+    
 
+    print(class_names[labels[0]])
+    print(class_names[labels[1]])
     out=generator(neutral_pics, labels,cuda=colab)
     im1=np.transpose(out[0,:,:].detach(), [1,2,0])
     im2=np.transpose(out[1,:,:].detach(), [1,2,0])
@@ -416,7 +449,7 @@ def visualize_sample(generator, colab=True):
     plt.show()
     plt.imshow(im2, cmap='gray')
     plt.show()
-
+    
     out=(emotion_pics +1)/2
     im1=np.transpose(out[0,:,:].detach(), [1,2,0])
     im2=np.transpose(out[1,:,:].detach(), [1,2,0])
@@ -424,12 +457,17 @@ def visualize_sample(generator, colab=True):
     plt.show()
     plt.imshow(im2, cmap='gray')
     plt.show()
+    '''
+def load_loss(epoch, subfoler):
+    return pickle.load(open("/content/gdrive/My Drive/APS360/Checkpoints"+subfolder+"/Losses"+str(epoch), 'rb'))
 
-
-def load_model(epoch, colab=True):
+def load_model(epoch, subfolder,colab=True):
+    '''
+    subfolder in  "/Jamal", "/Ling", "/Michael"
+    '''
     generator=Generator()
     if colab:
-        path ="/content/gdrive/My Drive/APS360/Checkpoints/generator" 
+        path ="/content/gdrive/My Drive/APS360/Checkpoints"+subfolder+"/generator" 
         weights = torch.load(path+str(epoch))
     else:
         path='checkpoints/generator'
@@ -438,7 +476,7 @@ def load_model(epoch, colab=True):
     
     discriminator = Discriminator()    
     if colab:
-        path ="/content/gdrive/My Drive/APS360/Checkpoints/discriminator"    
+        path ="/content/gdrive/My Drive/APS360/Checkpoints"+subfolder+"/discriminator"    
         weights = torch.load(path+str(epoch))
     else:
         path='checkpoints/discriminator'
@@ -450,7 +488,7 @@ def load_model(epoch, colab=True):
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    #gloss, dloss = train(generator,discriminator, num_epochs=10, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
+    Losses = train(generator,discriminator,checkpointfolder='/Jamal', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
 
 
         
