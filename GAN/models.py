@@ -280,16 +280,16 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
             optimizerG.zero_grad()
             ######################################################################
             generated_pics = generator(neutral_pics, labels, cuda=colab)
-            generated_pics_norm = (generated_pics-0.5)/0.5
-            generated_out= discriminator(generated_pics_norm, labels, cuda=colab)
+            generated_pics_image = generated_pics*0.5+0.5
+            generated_out= discriminator(generated_pics, labels, cuda=colab)
             
             #feature loss
             neutral_features = featurenet(neutral_pics) 
-            generated_features = featurenet(generated_pics_norm)
+            generated_features = featurenet(generated_pics)
             feat_loss = FeatureCriterion(generated_features,neutral_features)*identity_loss_weight #both input images are normalized
             
             #classifier loss
-            class_preds= classifier(generated_pics) #input the real pics. not normalized
+            class_preds= classifier(generated_pics_image) #input the real pics. not normalized
             classifier_loss = ClassifierCriterion(class_preds, labels)*emotion_loss_weight
             
             #GAN loss      
@@ -312,7 +312,7 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
             optimizerD.zero_grad()
             
         
-            generated_out= discriminator(generated_pics_norm.clone().detach(), labels, cuda=colab) #discriminator takes normalized images -1,1.
+            generated_out= discriminator(generated_pics.clone().detach(), labels, cuda=colab) #discriminator takes normalized images -1,1.
             real_out = discriminator(emotion_pics, labels, cuda=colab)#emotion loader already normalizes pics
             fakelabel_out = discriminator(emotion_pics, fakelabels, cuda=colab)
             
@@ -458,7 +458,7 @@ def visualize_sample(generator,  colab=True):
     plt.imshow(im2, cmap='gray')
     plt.show()
     '''
-def load_loss(epoch, subfoler):
+def load_loss(epoch, subfolder):
     return pickle.load(open("/content/gdrive/My Drive/APS360/Checkpoints"+subfolder+"/Losses"+str(epoch), 'rb'))
 
 def load_model(epoch, subfolder,colab=True):
