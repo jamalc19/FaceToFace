@@ -422,6 +422,7 @@ def visualize_sample(generator,  colab=True):
             emotion = class_names[i]
             labels[:] = i
             out = generator(neutral_pics, labels,cuda=colab)
+            out = out*0.5+0.5
             
             ax=axes[(i+1)//4][(i+1)%4]
             ax.imshow(np.transpose(out[0,:,:,:].detach(), [1,2,0]), cmap='gray')
