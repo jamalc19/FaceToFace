@@ -1,10 +1,25 @@
 import os
 import numpy as np
-#from autocrop import autocrop as ac
+from autocrop import autocrop as ac
 from shutil import copy
 
+def delete_ini(path="./Parsed3_20/"):
+    '''
+    Gets ride of extra desktop.ini files from folders in root folder.
 
-def crop(path="./Parsed3_15/", dest="./Cropped128/", pixel=128):
+    path (string): Root folder with -> subject folders -> img files
+    returns None
+    '''
+
+    for subject in os.listdir(path):
+        if subject == "desktop.ini":
+            os.remove(os.path.join(path,subject))
+            continue
+        for img in os.listdir(os.path.join(path,subject)):
+            if img == "desktop.ini":
+                os.remove(os.path.join(path,subject,img))
+
+def crop(path="./Parsed3_20/", dest="./Cropped128_3_20/", pixel=128):
     """
     Crop all of the images in each of the folders in the root directory
     and insert those images into a folder named "crop" in each image folder.
@@ -25,18 +40,23 @@ def crop(path="./Parsed3_15/", dest="./Cropped128/", pixel=128):
         crp_dir = dest + p_id
         err_dir = dest + p_id + "\\reject"
 
-        # Make a new folder if it doesn't exist
-        if os.path.isdir(crp_dir) == False:
-            os.mkdir(crp_dir)
+        # Ignore empty directories
+        if not os.listdir(in_dir):
+            print("Skipping empty directory")
 
-        # Crop all the images in the folder and store them in "crop"
-        ac.main(
-            input_d=in_dir,
-            output_d=crp_dir,
-            reject_d=reject_dir,
-            fheight=pixel,
-            fwidth=pixel,
-            facePercent=90)
+        else:
+            # Make a new folder if it doesn't exist
+            if os.path.isdir(crp_dir) == False:
+                os.mkdir(crp_dir)
+
+            # Crop all the images in the folder and store them in "crop"
+            ac.main(
+                input_d=in_dir,
+                output_d=crp_dir,
+                reject_d=reject_dir,
+                fheight=pixel,
+                fwidth=pixel,
+                facePercent=90)
 
 def check_emotion(path = "", emotion_list = ["happy", "surprise"]):
     """
@@ -54,7 +74,7 @@ def check_emotion(path = "", emotion_list = ["happy", "surprise"]):
 
     return emotion
 
-def train_test_split(path="./Cropped128/", emotion_list = ["happy", "surprise"]):
+def train_test_split(path="./Cropped128_3_20/", emotion_list = ["happy", "surprise"]):
     """
     Splits data into training and testing folders based on what we emotions
     we can to train out model to detect. Images of people who do not have images
@@ -114,7 +134,7 @@ def train_test_split(path="./Cropped128/", emotion_list = ["happy", "surprise"])
             copy(img_path, new_dir + "\\")
 
 
-def organize(path="./Cropped128/", dest="./OrganizedImages/"):
+def organize(path="./Cropped128_3_20/", dest="./OrganizedImages/"):
     """
     Organizes cropped images into emotion folders.
 
@@ -140,6 +160,7 @@ def organize(path="./Cropped128/", dest="./OrganizedImages/"):
             copy(new_path, new_dir + "\\")
 
 if __name__ == "__main__":
+    # delete_ini()
     # crop()
-    # organize()
+    organize()
     train_test_split(emotion_list = ['anger', 'disgust', 'fear', 'happy', 'sadness', 'surprise', 'neutral'])
