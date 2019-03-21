@@ -78,16 +78,14 @@ class Discriminator(nn.Module):
             nn.BatchNorm2d(512,momentum=0.1),
             nn.LeakyReLU(negative_slope=0.2),   
             nn.Conv2d(in_channels=512, out_channels=1, kernel_size=10,stride=1,padding=1) #a fc layer
-            
             )        
         
-    def forward(self,x, target_emotions, cuda=True):
+    def forward(self,x):
         x=self.initiallayers(x)
         x=self.finallayers(x)
         x = x.reshape(x.shape[0],1) #batchsize, output
         return torch.sigmoid(x)
 
-    
 class FeatureNet(nn.Module):
     def __init__(self):
         super(FeatureNet, self).__init__()    
@@ -131,7 +129,7 @@ def get_data(batch_size=32, overfit=False, colab=True):
     return neutral_loader, emotion_loader, dataloaderclasses
 
 #load saved parameters
-def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, emotion_loss_weight=10, overfit=False, colab=True): 
+def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, overfit=False, colab=True):
     torch.manual_seed(1000)#set random seet for replicability
 
     #set to train mode for batch norm calculations
@@ -148,9 +146,7 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
     
     Losses['TotalD_Losses']=[]
     Losses['TotalG_Losses']=[]
-    
-    
-    
+
     # featurenet always in eval mode
     featurenet = FeatureNet()
     featurenet.eval()
@@ -177,29 +173,19 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
         epoch_d_loss=0
         for emotion_pics, labels in emotion_loader:
             
-            
             neutral_pics = next(iter(neutral_loader))[0]
-         
             
             labels = torch.tensor([classes_map[dataloaderclasses[i]] for i in labels]) #convert labels from dataloader indices to model indices
-            
-            # get fakelables roughly uniform from every i to j and adjust so they aren't = to true labels
-            fakelabels = (torch.rand(len(labels))*7).type(torch.int64)
-            fakelabels+(fakelabels==labels).type(torch.int64)
-            fakelabels-=(fakelabels>6).type(torch.int64)*7
             
             if colab:
                 emotion_pics = emotion_pics.cuda()
                 neutral_pics = neutral_pics.cuda()
                 labels = labels.cuda()
-                fakelabels = fakelabels.cuda()
-            
 
             #forward pass for generator
             optimizerG.zero_grad()
             ######################################################################
             generated_pics = generator(neutral_pics, labels, cuda=colab)
-            generated_pics_image = generated_pics*0.5+0.5
             generated_out= discriminator(generated_pics, labels, cuda=colab)
             
             #feature loss
@@ -227,7 +213,7 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
         
             generated_out= discriminator(generated_pics.clone().detach(), labels, cuda=colab) #discriminator takes normalized images -1,1.
             real_out = discriminator(emotion_pics, labels, cuda=colab)#emotion loader already normalizes pics
-            fakelabel_out = discriminator(emotion_pics, fakelabels, cuda=colab)
+            fakelabel_out = discriminator(emotion_pics)
             
             
             generatedD_loss = 0.25*DiscriminatorCriterion(generated_out,torch.zeros_like(generated_out)) *gan_loss_weight
@@ -306,9 +292,7 @@ def visualize_sample(generator,  colab=True):
             ax.set_title(emotion)    
         plt.show()
         break
-                                
-                
-                
+
     ''' 
     im1=np.transpose(out[0,:,:].detach(), [1,2,0])
     im2=np.transpose(out[1,:,:].detach(), [1,2,0])
