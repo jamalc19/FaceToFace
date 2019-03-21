@@ -252,7 +252,7 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
 
             path='checkpoints'
             if colab:
-                path ="'/content/gdrive/My Drive/APS360/Checkpoints"+checkpointfolder
+                path ="/content/gdrive/My Drive/APS360/Checkpoints"+checkpointfolder
                 if epoch%5==0:
                     pickle.dump(Losses,open(path+'/Losses'+str(epoch), 'wb'))
             torch.save(d_params, path+'/discriminator'+str(epoch))
