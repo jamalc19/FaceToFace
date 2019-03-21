@@ -211,22 +211,19 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
             optimizerD.zero_grad()
 
         
-            generated_out= discriminator(generated_pics.clone().detach(), labels, cuda=colab) #discriminator takes normalized images -1,1.
+            generated_out= discriminator(generated_pics.clone().detach()) #discriminator takes normalized images -1,1.
             real_out = discriminator(emotion_pics)#emotion loader already normalizes pics
-            fakelabel_out = discriminator(emotion_pics)
+
             
-            
-            generatedD_loss = 0.25*DiscriminatorCriterion(generated_out,torch.zeros_like(generated_out)) *gan_loss_weight
+            generatedD_loss = 0.5*DiscriminatorCriterion(generated_out,torch.zeros_like(generated_out)) *gan_loss_weight
             realD_loss =  0.5*DiscriminatorCriterion(real_out, torch.ones_like(real_out)) *gan_loss_weight
-            fakeD_loss = 0.25*DiscriminatorCriterion(fakelabel_out, torch.zeros_like(fakelabel_out)) *gan_loss_weight
-            
-            D_loss=generatedD_loss + realD_loss + fakeD_loss
+
+            D_loss=generatedD_loss + realD_loss
                  
             D_loss.backward()
             optimizerD.step()
             
             Losses['D_Real_Losses'].append(realD_loss)
-            Losses['D_Fake_Losses'].append(fakeD_loss)
             Losses['D_Generator_Losses'].append(generatedD_loss)
             Losses['TotalD_Losses'].append(D_loss)
 
