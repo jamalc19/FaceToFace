@@ -186,7 +186,7 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
             optimizerG.zero_grad()
             ######################################################################
             generated_pics = generator(neutral_pics, labels, cuda=colab)
-            generated_out= discriminator(generated_pics, labels, cuda=colab)
+            generated_out= discriminator(generated_pics)
             
             #feature loss
             neutral_features = featurenet(neutral_pics) 
@@ -212,7 +212,7 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
 
         
             generated_out= discriminator(generated_pics.clone().detach(), labels, cuda=colab) #discriminator takes normalized images -1,1.
-            real_out = discriminator(emotion_pics, labels, cuda=colab)#emotion loader already normalizes pics
+            real_out = discriminator(emotion_pics)#emotion loader already normalizes pics
             fakelabel_out = discriminator(emotion_pics)
             
             
@@ -352,6 +352,3 @@ if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
     Losses = train(generator,discriminator,checkpointfolder='/Michael', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=False, colab=False)
-
-
-        
