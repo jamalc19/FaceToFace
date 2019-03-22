@@ -129,7 +129,8 @@ def get_data(batch_size=32, overfit=False, colab=True):
     return neutral_loader, emotion_loader, dataloaderclasses
 
 #load saved parameters
-def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,lr=0.001, gan_loss_weight=75, identity_loss_weight=0.5e-3, overfit=False, colab=True):
+def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,lr=0.001,
+          gan_loss_weight=75, identity_loss_weight=0.5e-3, overfit=False, colab=True, start_epoch=0):
     torch.manual_seed(1000)#set random seet for replicability
 
     #set to train mode for batch norm calculations
@@ -167,8 +168,7 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
     
     neutral_loader, emotion_loader, dataloaderclasses = get_data(batch_size=batchsize, overfit=overfit, colab=colab)
     
-    for epoch in range(num_epochs):
-        print("Epoch",epoch)
+    for epoch in range(start_epoch+1,start_epoch+num_epochs+1):
         epoch_g_loss=0
         epoch_d_loss=0
         for emotion_pics, labels in emotion_loader:
@@ -210,7 +210,6 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
             #Discriminator Pass
             optimizerD.zero_grad()
 
-        
             generated_out= discriminator(generated_pics.clone().detach()) #discriminator takes normalized images -1,1.
             real_out = discriminator(emotion_pics)#emotion loader already normalizes pics
 
@@ -237,9 +236,10 @@ def train(generator,discriminator, num_epochs,checkpointfolder='', batchsize=32,
             if colab:
                 path ="/content/gdrive/My Drive/APS360/Checkpoints"+checkpointfolder
                 if epoch%5==0:
+                    print("Epoch", epoch)
                     pickle.dump(Losses,open(path+'/Losses'+str(epoch), 'wb'))
-            torch.save(d_params, path+'/discriminator'+str(epoch))
-            torch.save(g_params, path+'/generator'+str(epoch))
+                    torch.save(d_params, path+'/discriminator'+str(epoch))
+                    torch.save(g_params, path+'/generator'+str(epoch))
             
     #training done put in eval mode  
     discriminator.eval()
@@ -348,4 +348,5 @@ def load_model(epoch, subfolder,colab=True):
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    Losses = train(generator,discriminator,checkpointfolder='/Michael', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=False, colab=False)
+    Losses = train(generator,discriminator,checkpointfolder='/Michael', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30,
+                   identity_loss_weight=0.5e-3, overfit=False, colab=False, start_epoch=20)
