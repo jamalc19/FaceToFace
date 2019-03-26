@@ -49,6 +49,14 @@ class Generator(nn.Module):
 
     
     def forward(self,x, target_emotions, residual_blocks=6, cuda=True):
+        #inject one hot encoding
+        one_hot=torch.zeros(x.shape[0], 7,128,128)
+        if cuda:
+            one_hot=one_hot.cuda()        
+        one_hot[range(x.shape[0]),target_emotions,:,:]=1
+
+        x=torch.cat((x,one_hot),dim=1)  
+        
         x=self.encoder(x)
 
         for i in range(residual_blocks):
