@@ -17,7 +17,7 @@ class Generator(nn.Module):
         super(Generator, self).__init__()    
         
         self.encoder = nn.Sequential( 
-            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=7,stride=1,padding=3), #in channels is temporary
+            nn.Conv2d(in_channels=10, out_channels=32, kernel_size=7,stride=1,padding=3), #in channels is temporary
             nn.BatchNorm2d(32,momentum=0.1),
             nn.ReLU(),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3,stride=1,padding=1),
@@ -28,7 +28,7 @@ class Generator(nn.Module):
             nn.ReLU()
             )
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(in_channels = 135, out_channels = 64, kernel_size=3,padding=1, stride=1),
+            nn.ConvTranspose2d(in_channels = 128, out_channels = 64, kernel_size=3,padding=1, stride=1),
             nn.BatchNorm2d(64, momentum=0.1),
             nn.ReLU(),       
             nn.ConvTranspose2d(in_channels = 64, out_channels = 32, kernel_size=3,padding=1, stride=1),
@@ -49,27 +49,21 @@ class Generator(nn.Module):
 
     
     def forward(self,x, target_emotions, residual_blocks=6, cuda=True):
+        #torch.eye(7)[target_emotions]
+        
         #inject one hot encoding
         one_hot=torch.zeros(x.shape[0], 7,128,128)
         if cuda:
             one_hot=one_hot.cuda()        
         one_hot[range(x.shape[0]),target_emotions,:,:]=1
 
-        x=torch.cat((x,one_hot),dim=1)  
+        
+        x=torch.cat((x,one_hot),dim=1)
         
         x=self.encoder(x)
-
+            
         for i in range(residual_blocks):
             x = x + self.residual(x)
-            
-        #inject one hot encoding
-        one_hot=torch.zeros(x.shape[0], 7,128,128)
-        if cuda:
-            one_hot=one_hot.cuda()        
-        one_hot[range(x.shape[0]),target_emotions,:,:]=1
-
-        
-        x=torch.cat((x,one_hot),dim=1)          
             
         x=self.decoder(x)#output is black and white
         x=torch.cat((x,x,x),dim=1) #convert to 3 channels
@@ -446,7 +440,6 @@ def visualize_sample(generator,  colab=True):
     plt.imshow(im2, cmap='gray')
     plt.show()  
     
-
     print(class_names[labels[0]])
     print(class_names[labels[1]])
     out=generator(neutral_pics, labels,cuda=colab)
@@ -495,7 +488,5 @@ def load_model(epoch, subfolder,colab=True):
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-   # Losses = train(generator,discriminator,checkpointfolder='/Jamal', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
+    #Losses = train(generator,discriminator,checkpointfolder='/Jamal', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
 
-
-        
