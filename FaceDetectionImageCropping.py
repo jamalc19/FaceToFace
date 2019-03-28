@@ -2,6 +2,7 @@ import os
 import numpy as np
 from autocrop import autocrop as ac
 from shutil import copy
+from PIL import Image
 
 def delete_ini(path="./Parsed3_20/"):
     '''
@@ -159,8 +160,23 @@ def organize(path="./Cropped128_3_20/", dest="./OrganizedImages/"):
             # Copy the image to the new destination
             copy(new_path, new_dir + "\\")
 
+def greyscale_img(path,to_path):
+    img = Image.open(path).convert('LA')
+    img.save(to_path)
+
 if __name__ == "__main__":
     # delete_ini()
     # crop()
-    organize()
-    train_test_split(emotion_list = ['anger', 'disgust', 'fear', 'happy', 'sadness', 'surprise', 'neutral'])
+    # organize()
+    # train_test_split(emotion_list = ['anger', 'disgust', 'fear', 'happy', 'sadness', 'surprise', 'neutral'])
+    for img in os.listdir("./OrganizedImages/friends"):
+        path = "./OrganizedImages/friends" + "/" + img
+        greyscale_img(path,path)
+    ac.main(
+        input_d="./OrganizedImages/friends",
+        output_d="./OrganizedImages/friends",
+        reject_d="./OrganizedImages/friends",
+        fheight=128,
+        fwidth=128,
+        facePercent=80)
+
