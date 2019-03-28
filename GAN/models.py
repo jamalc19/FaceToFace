@@ -440,7 +440,6 @@ def visualize_sample(generator,  colab=True):
     plt.imshow(im2, cmap='gray')
     plt.show()  
     
-
     print(class_names[labels[0]])
     print(class_names[labels[1]])
     out=generator(neutral_pics, labels,cuda=colab)
@@ -489,7 +488,5 @@ def load_model(epoch, subfolder,colab=True):
 if __name__=="__main__":
     generator=Generator()
     discriminator = Discriminator()    
-    Losses = train(generator,discriminator,checkpointfolder='/Jamal', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
+    #Losses = train(generator,discriminator,checkpointfolder='/Jamal', num_epochs=4, batchsize=2,lr=0.001, gan_loss_weight=30, identity_loss_weight=0.5e-3, emotion_loss_weight=2, overfit=True, colab=False)
 
-
-        
