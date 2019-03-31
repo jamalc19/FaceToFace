@@ -20,7 +20,7 @@ def delete_ini(path="./Parsed3_20/"):
             if img == "desktop.ini":
                 os.remove(os.path.join(path,subject,img))
 
-def crop(path="./Parsed3_20/", dest="./Cropped128_3_20/", pixel=128):
+def crop(path="./TESTFORMICHAEL/", dest="./TestCrop/", pixel=128):
     """
     Crop all of the images in each of the folders in the root directory
     and insert those images into a folder named "crop" in each image folder.
