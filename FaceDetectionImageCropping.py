@@ -169,14 +169,14 @@ if __name__ == "__main__":
     # crop()
     # organize()
     # train_test_split(emotion_list = ['anger', 'disgust', 'fear', 'happy', 'sadness', 'surprise', 'neutral'])
-    for img in os.listdir("./OrganizedImages/friends"):
-        path = "./OrganizedImages/friends" + "/" + img
-        greyscale_img(path,path)
+    # for img in os.listdir("./OrganizedImages/friends"):
+    #     path = "./OrganizedImages/friends/friends" + "/" + img
+    #     greyscale_img(path,path)
     ac.main(
-        input_d="./OrganizedImages/friends",
-        output_d="./OrganizedImages/friends",
-        reject_d="./OrganizedImages/friends",
+        input_d="./TESTFORMICHAEL/",
+        output_d="./TestCrop/",
+        reject_d="./OrganizedImages/friends/friends",
         fheight=128,
         fwidth=128,
-        facePercent=80)
+        facePercent=90)
 
