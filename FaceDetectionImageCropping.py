@@ -2,7 +2,7 @@ import os
 import numpy as np
 from autocrop import autocrop as ac
 from shutil import copy
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 def delete_ini(path="./Parsed3_20/"):
     '''
@@ -19,6 +19,42 @@ def delete_ini(path="./Parsed3_20/"):
         for img in os.listdir(os.path.join(path,subject)):
             if img == "desktop.ini":
                 os.remove(os.path.join(path,subject,img))
+
+def augment_flip(path=""):
+    '''
+    Augment the folder with flipped images
+    :param path:
+    :return:
+    '''
+    for img in os.listdir(path):
+        path2 = path + "/" + img
+        image = Image.open(path2)
+        rotated_image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        path3 = path + "/" + img.split(".")[0] + "_f.png"
+        rotated_image.save(path3)
+
+def augment_contrast(path=""):
+    '''
+    Augment the folder with flipped images
+    :param path:
+    :return:
+    '''
+    for img in os.listdir(path):
+        path2 = path + "/" + img
+        image = Image.open(path2)
+
+        # Enhance up
+        enhancer = ImageEnhance.Contrast(image)
+        enhanced_up = enhancer.enhance(1.25)
+        up = path + "/" + img.split(".")[0] + "_c_up.png"
+        enhanced_up.save(up)
+
+        # Enhance Down
+        enhancer = ImageEnhance.Contrast(image)
+        enhanced_dn = enhancer.enhance(0.75)
+        dn = path + "/" + img.split(".")[0] + "_c_dn.png"
+        enhanced_dn.save(dn)
+
 
 def crop(path="./TESTFORMICHAEL/", dest="./TestCrop/", pixel=128):
     """
@@ -172,11 +208,14 @@ if __name__ == "__main__":
     # for img in os.listdir("./OrganizedImages/friends"):
     #     path = "./OrganizedImages/friends/friends" + "/" + img
     #     greyscale_img(path,path)
-    ac.main(
-        input_d="./TESTFORMICHAEL/",
-        output_d="./TestCrop/",
-        reject_d="./OrganizedImages/friends/friends",
-        fheight=128,
-        fwidth=128,
-        facePercent=90)
-
+    # ac.main(
+    #     input_d="./TESTFORMICHAEL/",
+    #     output_d="./TestCrop/",
+    #     reject_d="./OrganizedImages/friends/friends",
+    #     fheight=128,
+    #     fwidth=128,
+    #     facePercent=90)
+    happy_path = "./train/happyfolder/happy"
+    disgust_path = "./train/DisgustFolder/disgust"
+    augment_flip(disgust_path)
+    augment_contrast(disgust_path)
