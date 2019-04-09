@@ -117,7 +117,7 @@ def get_data(batch_size=32, overfit=False, colab=True):
 
     path = '../train/HappyFolder'
     if colab:
-        path="FaceToFace/train/emotions/SurpriseFolder"
+        path="FaceToFace/train/SurpriseFolder"
     if overfit:
         path += 'overfit'
 
